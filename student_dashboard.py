@@ -12,7 +12,12 @@ class StudentDashboard:
     def __init__(self, root, user):
         self.root = root
         self.current_user = user
+        self.logout_callback = None
         self.create_dashboard()
+        
+    def set_logout_callback(self, callback):
+        """Set the callback function for logout"""
+        self.logout_callback = callback
         
     def create_dashboard(self):
         """Create student dashboard"""
@@ -48,8 +53,8 @@ class StudentDashboard:
         
     def logout(self):
         """Logout and return to login screen"""
-        # This will be implemented in the main application
-        pass
+        if self.logout_callback:
+            self.logout_callback()
         
     def create_available_courses_tab(self):
         """Create the available courses tab for students"""

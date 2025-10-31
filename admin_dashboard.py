@@ -12,7 +12,12 @@ class AdminDashboard:
     def __init__(self, root, user):
         self.root = root
         self.current_user = user
+        self.logout_callback = None
         self.create_dashboard()
+        
+    def set_logout_callback(self, callback):
+        """Set the callback function for logout"""
+        self.logout_callback = callback
         
     def create_dashboard(self):
         """Create admin dashboard"""
@@ -41,16 +46,15 @@ class AdminDashboard:
         self.course_tab = ttk.Frame(self.notebook)
         self.department_tab = ttk.Frame(self.notebook)
         self.section_tab = ttk.Frame(self.notebook)
-        self.enrollment_tab = ttk.Frame(self.notebook)
-        self.assign_course_tab = ttk.Frame(self.notebook)
         
         self.notebook.add(self.student_tab, text="Students")
         self.notebook.add(self.professor_tab, text="Professors")
         self.notebook.add(self.course_tab, text="Courses")
         self.notebook.add(self.department_tab, text="Departments")
         self.notebook.add(self.section_tab, text="Sections")
-        self.notebook.add(self.enrollment_tab, text="Enrollments")
-        self.notebook.add(self.assign_course_tab, text="Assign Courses")
+        
+        # Bind tab change event
+        self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
         
         # Create content for each tab
         self.create_student_tab()
@@ -58,14 +62,26 @@ class AdminDashboard:
         self.create_course_tab()
         self.create_department_tab()
         self.create_section_tab()
-        self.create_enrollment_tab()
-        self.create_assign_course_tab()
         
     def logout(self):
         """Logout and return to login screen"""
-        # This will be implemented in the main application
-        pass
+        if self.logout_callback:
+            self.logout_callback()
+            
+    def on_tab_changed(self, event):
+        """Handle tab change events to refresh data when needed"""
+        # Get the currently selected tab
+        selected_tab = event.widget.select()
+        tab_text = event.widget.tab(selected_tab, "text")
         
+        # Refresh professor dropdown in course tab when course tab is selected
+        if tab_text == "Courses":
+            self.load_professors_to_course_combobox()
+            self.load_departments_to_course_combobox()
+        # Refresh course dropdown in section tab when section tab is selected
+        elif tab_text == "Sections":
+            self.load_courses_to_section_combobox()
+            
     def create_student_tab(self):
         """Create the student management tab"""
         # Left frame for form
@@ -101,8 +117,10 @@ class AdminDashboard:
         search_frame.grid(row=6, column=0, columnspan=2, pady=10)
         
         tk.Label(search_frame, text="Search:").pack(side=tk.LEFT, padx=5)
-        self.student_search_entry = create_entry(search_frame, 20, 0, 1, padx=5)
-        create_button(search_frame, "Search", self.search_students, "left")
+        self.student_search_entry = ttk.Entry(search_frame, width=20)
+        self.student_search_entry.pack(side=tk.LEFT, padx=5)
+        search_button = ttk.Button(search_frame, text="Search", command=self.search_students)
+        search_button.pack(side=tk.LEFT, padx=5)
         
         # Right frame for treeview
         tree_frame = create_tree_frame(self.student_tab, "Student Records")
@@ -317,8 +335,10 @@ class AdminDashboard:
         search_frame.grid(row=6, column=0, columnspan=2, pady=10)
         
         tk.Label(search_frame, text="Search:").pack(side=tk.LEFT, padx=5)
-        self.professor_search_entry = create_entry(search_frame, 20, 0, 1, padx=5)
-        create_button(search_frame, "Search", self.search_professors, "left")
+        self.professor_search_entry = ttk.Entry(search_frame, width=20)
+        self.professor_search_entry.pack(side=tk.LEFT, padx=5)
+        search_button = ttk.Button(search_frame, text="Search", command=self.search_professors)
+        search_button.pack(side=tk.LEFT, padx=5)
         
         # Right frame for treeview
         tree_frame = create_tree_frame(self.professor_tab, "Professor Records")
@@ -369,6 +389,25 @@ class AdminDashboard:
         for professor in professors:
             self.professor_tree.insert("", tk.END, values=professor)
             
+    def select_professor(self, event):
+        """Select a professor from treeview to populate form"""
+        try:
+            selected_item = self.professor_tree.selection()[0]
+            values = self.professor_tree.item(selected_item, "values")
+            
+            # Populate form
+            self.professor_name_entry.delete(0, tk.END)
+            self.professor_name_entry.insert(0, values[1])
+            
+            self.professor_email_entry.delete(0, tk.END)
+            self.professor_email_entry.insert(0, values[2])
+            
+            self.professor_dept_combobox.set(values[3] if values[3] else "")
+            self.professor_username_entry.delete(0, tk.END)
+            self.professor_username_entry.insert(0, values[4])
+        except IndexError:
+            pass  # No item selected
+            
     def add_professor(self):
         """Add a new professor to database"""
         name = self.professor_name_entry.get()
@@ -395,6 +434,11 @@ class AdminDashboard:
             
             self.load_professors()
             
+            # Refresh professor dropdown in course tab
+            self.load_professors_to_course_combobox()
+            # Refresh course dropdown in section tab (as course information may have changed)
+            self.load_courses_to_section_combobox()
+            
             # Clear form
             self.professor_name_entry.delete(0, tk.END)
             self.professor_email_entry.delete(0, tk.END)
@@ -405,25 +449,6 @@ class AdminDashboard:
             messagebox.showinfo("Success", "Professor added successfully")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to add professor: {str(e)}")
-            
-    def select_professor(self, event):
-        """Select a professor from treeview to populate form"""
-        try:
-            selected_item = self.professor_tree.selection()[0]
-            values = self.professor_tree.item(selected_item, "values")
-            
-            # Populate form
-            self.professor_name_entry.delete(0, tk.END)
-            self.professor_name_entry.insert(0, values[1])
-            
-            self.professor_email_entry.delete(0, tk.END)
-            self.professor_email_entry.insert(0, values[2])
-            
-            self.professor_dept_combobox.set(values[3] if values[3] else "")
-            self.professor_username_entry.delete(0, tk.END)
-            self.professor_username_entry.insert(0, values[4])
-        except IndexError:
-            pass  # No item selected
             
     def update_professor(self):
         """Update selected professor"""
@@ -458,6 +483,11 @@ class AdminDashboard:
             
             self.load_professors()
             
+            # Refresh professor dropdown in course tab
+            self.load_professors_to_course_combobox()
+            # Refresh course dropdown in section tab (as course information may have changed)
+            self.load_courses_to_section_combobox()
+            
             messagebox.showinfo("Success", "Professor updated successfully")
         except IndexError:
             messagebox.showerror("Error", "Please select a professor to update")
@@ -481,6 +511,11 @@ class AdminDashboard:
                 conn.close()
                 
                 self.load_professors()
+                
+                # Refresh professor dropdown in course tab
+                self.load_professors_to_course_combobox()
+                # Refresh course dropdown in section tab (as course information may have changed)
+                self.load_courses_to_section_combobox()
                 
                 # Clear form
                 self.professor_name_entry.delete(0, tk.END)
@@ -565,8 +600,10 @@ class AdminDashboard:
         search_frame.grid(row=6, column=0, columnspan=2, pady=10)
         
         tk.Label(search_frame, text="Search:").pack(side=tk.LEFT, padx=5)
-        self.course_search_entry = create_entry(search_frame, 20, 0, 1, padx=5)
-        create_button(search_frame, "Search", self.search_courses, "left")
+        self.course_search_entry = ttk.Entry(search_frame, width=20)
+        self.course_search_entry.pack(side=tk.LEFT, padx=5)
+        search_button = ttk.Button(search_frame, text="Search", command=self.search_courses)
+        search_button.pack(side=tk.LEFT, padx=5)
         
         # Right frame for treeview
         tree_frame = create_tree_frame(self.course_tab, "Course Records")
@@ -634,6 +671,27 @@ class AdminDashboard:
         for course in courses:
             self.course_tree.insert("", tk.END, values=course)
             
+    def select_course(self, event):
+        """Select a course from treeview to populate form"""
+        try:
+            selected_item = self.course_tree.selection()[0]
+            values = self.course_tree.item(selected_item, "values")
+            
+            # Populate form
+            self.course_name_entry.delete(0, tk.END)
+            self.course_name_entry.insert(0, values[1])
+            
+            self.course_credits_entry.delete(0, tk.END)
+            self.course_credits_entry.insert(0, values[2])
+            
+            self.course_semester_entry.delete(0, tk.END)
+            self.course_semester_entry.insert(0, values[3])
+            
+            self.course_dept_combobox.set(values[4] if values[4] else "")
+            self.course_professor_combobox.set(values[5] if values[5] else "")
+        except IndexError:
+            pass  # No item selected
+            
     def add_course(self):
         """Add a new course to database"""
         course_name = self.course_name_entry.get()
@@ -663,6 +721,9 @@ class AdminDashboard:
             
             self.load_courses()
             
+            # Refresh course dropdown in section tab
+            self.load_courses_to_section_combobox()
+            
             # Clear form
             self.course_name_entry.delete(0, tk.END)
             self.course_credits_entry.delete(0, tk.END)
@@ -673,27 +734,6 @@ class AdminDashboard:
             messagebox.showinfo("Success", "Course added successfully")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to add course: {str(e)}")
-            
-    def select_course(self, event):
-        """Select a course from treeview to populate form"""
-        try:
-            selected_item = self.course_tree.selection()[0]
-            values = self.course_tree.item(selected_item, "values")
-            
-            # Populate form
-            self.course_name_entry.delete(0, tk.END)
-            self.course_name_entry.insert(0, values[1])
-            
-            self.course_credits_entry.delete(0, tk.END)
-            self.course_credits_entry.insert(0, values[2])
-            
-            self.course_semester_entry.delete(0, tk.END)
-            self.course_semester_entry.insert(0, values[3])
-            
-            self.course_dept_combobox.set(values[4] if values[4] else "")
-            self.course_professor_combobox.set(values[5] if values[5] else "")
-        except IndexError:
-            pass  # No item selected
             
     def update_course(self):
         """Update selected course"""
@@ -727,6 +767,9 @@ class AdminDashboard:
             
             self.load_courses()
             
+            # Refresh course dropdown in section tab
+            self.load_courses_to_section_combobox()
+            
             messagebox.showinfo("Success", "Course updated successfully")
         except IndexError:
             messagebox.showerror("Error", "Please select a course to update")
@@ -750,6 +793,9 @@ class AdminDashboard:
                 conn.close()
                 
                 self.load_courses()
+                
+                # Refresh course dropdown in section tab
+                self.load_courses_to_section_combobox()
                 
                 # Clear form
                 self.course_name_entry.delete(0, tk.END)
@@ -825,8 +871,10 @@ class AdminDashboard:
         search_frame.grid(row=3, column=0, columnspan=2, pady=10)
         
         tk.Label(search_frame, text="Search:").pack(side=tk.LEFT, padx=5)
-        self.dept_search_entry = create_entry(search_frame, 20, 0, 1, padx=5)
-        create_button(search_frame, "Search", self.search_departments, "left")
+        self.dept_search_entry = ttk.Entry(search_frame, width=20)
+        self.dept_search_entry.pack(side=tk.LEFT, padx=5)
+        search_button = ttk.Button(search_frame, text="Search", command=self.search_departments)
+        search_button.pack(side=tk.LEFT, padx=5)
         
         # Right frame for treeview
         tree_frame = create_tree_frame(self.department_tab, "Department Records")
@@ -857,6 +905,21 @@ class AdminDashboard:
         for dept in departments:
             self.dept_tree.insert("", tk.END, values=dept)
             
+    def select_department(self, event):
+        """Select a department from treeview to populate form"""
+        try:
+            selected_item = self.dept_tree.selection()[0]
+            values = self.dept_tree.item(selected_item, "values")
+            
+            # Populate form
+            self.dept_name_entry.delete(0, tk.END)
+            self.dept_name_entry.insert(0, values[1])
+            
+            self.dept_location_entry.delete(0, tk.END)
+            self.dept_location_entry.insert(0, values[2])
+        except IndexError:
+            pass  # No item selected
+            
     def add_department(self):
         """Add a new department to database"""
         dept_name = self.dept_name_entry.get()
@@ -878,6 +941,8 @@ class AdminDashboard:
             self.load_departments()
             self.load_departments_to_combobox()  # Refresh comboboxes
             self.load_departments_to_course_combobox()
+            # Refresh course dropdown in section tab (as course information may have changed)
+            self.load_courses_to_section_combobox()
             
             # Clear form
             self.dept_name_entry.delete(0, tk.END)
@@ -886,21 +951,6 @@ class AdminDashboard:
             messagebox.showinfo("Success", "Department added successfully")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to add department: {str(e)}")
-            
-    def select_department(self, event):
-        """Select a department from treeview to populate form"""
-        try:
-            selected_item = self.dept_tree.selection()[0]
-            values = self.dept_tree.item(selected_item, "values")
-            
-            # Populate form
-            self.dept_name_entry.delete(0, tk.END)
-            self.dept_name_entry.insert(0, values[1])
-            
-            self.dept_location_entry.delete(0, tk.END)
-            self.dept_location_entry.insert(0, values[2])
-        except IndexError:
-            pass  # No item selected
             
     def update_department(self):
         """Update selected department"""
@@ -926,6 +976,8 @@ class AdminDashboard:
             self.load_departments()
             self.load_departments_to_combobox()  # Refresh comboboxes
             self.load_departments_to_course_combobox()
+            # Refresh course dropdown in section tab (as course information may have changed)
+            self.load_courses_to_section_combobox()
             
             messagebox.showinfo("Success", "Department updated successfully")
         except IndexError:
@@ -952,6 +1004,8 @@ class AdminDashboard:
                 self.load_departments()
                 self.load_departments_to_combobox()  # Refresh comboboxes
                 self.load_departments_to_course_combobox()
+                # Refresh course dropdown in section tab (as course information may have changed)
+                self.load_courses_to_section_combobox()
                 
                 # Clear form
                 self.dept_name_entry.delete(0, tk.END)
@@ -1017,8 +1071,10 @@ class AdminDashboard:
         search_frame.grid(row=4, column=0, columnspan=2, pady=10)
         
         tk.Label(search_frame, text="Search:").pack(side=tk.LEFT, padx=5)
-        self.section_search_entry = create_entry(search_frame, 20, 0, 1, padx=5)
-        create_button(search_frame, "Search", self.search_sections, "left")
+        self.section_search_entry = ttk.Entry(search_frame, width=20)
+        self.section_search_entry.pack(side=tk.LEFT, padx=5)
+        search_button = ttk.Button(search_frame, text="Search", command=self.search_sections)
+        search_button.pack(side=tk.LEFT, padx=5)
         
         # Right frame for treeview
         tree_frame = create_tree_frame(self.section_tab, "Section Records")
@@ -1214,373 +1270,3 @@ class AdminDashboard:
         # Insert data
         for section in sections:
             self.section_tree.insert("", tk.END, values=section)
-            
-    def create_enrollment_tab(self):
-        """Create the enrollment management tab"""
-        # Left frame for form
-        form_frame = create_form_frame(self.enrollment_tab, "Enrollment Information")
-        
-        # Form fields
-        create_label(form_frame, "Student:", 0, 0)
-        self.enrollment_student_combobox = create_combobox(form_frame, 27, 0, 1)
-        self.load_students_to_enrollment_combobox()
-        
-        create_label(form_frame, "Section:", 1, 0)
-        self.enrollment_section_combobox = create_combobox(form_frame, 27, 1, 1, pady=5)
-        self.load_sections_to_enrollment_combobox()
-        
-        create_label(form_frame, "Grade:", 2, 0)
-        self.enrollment_grade_entry = create_entry(form_frame, 30, 2, 1, pady=5)
-        
-        # Buttons
-        button_frame = ttk.Frame(form_frame)
-        button_frame.grid(row=3, column=0, columnspan=2, pady=10)
-        
-        create_button(button_frame, "Add Enrollment", self.add_enrollment, "left")
-        create_button(button_frame, "Update Enrollment", self.update_enrollment, "left")
-        create_button(button_frame, "Delete Enrollment", self.delete_enrollment, "left")
-        
-        # Search
-        search_frame = ttk.Frame(form_frame)
-        search_frame.grid(row=4, column=0, columnspan=2, pady=10)
-        
-        tk.Label(search_frame, text="Search:").pack(side=tk.LEFT, padx=5)
-        self.enrollment_search_entry = create_entry(search_frame, 20, 0, 1, padx=5)
-        create_button(search_frame, "Search", self.search_enrollments, "left")
-        
-        # Right frame for treeview
-        tree_frame = create_tree_frame(self.enrollment_tab, "Enrollment Records")
-        
-        # Create treeview
-        columns = ("ID", "Student", "Section", "Grade")
-        headings = ("ID", "Student", "Section", "Grade")
-        widths = (50, 150, 200, 100)
-        self.enrollment_tree = create_treeview(tree_frame, columns, headings, widths)
-        self.enrollment_tree.bind("<ButtonRelease-1>", self.select_enrollment)
-        self.load_enrollments()
-        
-    def load_students_to_enrollment_combobox(self):
-        """Load students to enrollment combobox"""
-        conn = sqlite3.connect(DATABASE_NAME)
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT student_id, name FROM Student")
-        students = cursor.fetchall()
-        conn.close()
-        
-        # Create a list of student names for the combobox
-        student_names = [student[1] for student in students]
-        self.enrollment_student_combobox['values'] = student_names
-        
-        # Create a mapping for student_id lookup
-        self.enrollment_student_id_map = {student[1]: student[0] for student in students}
-        
-    def load_sections_to_enrollment_combobox(self):
-        """Load sections to enrollment combobox"""
-        conn = sqlite3.connect(DATABASE_NAME)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT s.section_id, c.course_name, s.room_no, s.time_slot 
-            FROM Section s 
-            LEFT JOIN Course c ON s.course_id = c.course_id
-        """)
-        sections = cursor.fetchall()
-        conn.close()
-        
-        # Create a list of section descriptions for the combobox
-        section_descs = [f"{section[1]} - {section[2]} ({section[3]})" for section in sections]
-        self.enrollment_section_combobox['values'] = section_descs
-        
-        # Create a mapping for section_id lookup
-        self.enrollment_section_id_map = {f"{section[1]} - {section[2]} ({section[3]})": section[0] for section in sections}
-        
-    def load_enrollments(self):
-        """Load enrollments from database to treeview"""
-        # Clear existing data
-        for item in self.enrollment_tree.get_children():
-            self.enrollment_tree.delete(item)
-            
-        # Fetch data with student and section information
-        conn = sqlite3.connect(DATABASE_NAME)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT e.enrollment_id, st.name, c.course_name || ' - ' || s.room_no || ' (' || s.time_slot || ')', e.grade
-            FROM Enrollment e
-            LEFT JOIN Student st ON e.student_id = st.student_id
-            LEFT JOIN Section s ON e.section_id = s.section_id
-            LEFT JOIN Course c ON s.course_id = c.course_id
-        """)
-        enrollments = cursor.fetchall()
-        conn.close()
-        
-        # Insert data
-        for enrollment in enrollments:
-            self.enrollment_tree.insert("", tk.END, values=enrollment)
-            
-    def add_enrollment(self):
-        """Add a new enrollment to database"""
-        student_name = self.enrollment_student_combobox.get()
-        section_desc = self.enrollment_section_combobox.get()
-        grade = self.enrollment_grade_entry.get()
-        
-        if not student_name or not section_desc:
-            messagebox.showerror("Error", "Student and Section are required")
-            return
-            
-        try:
-            # Get student ID
-            student_id = self.enrollment_student_id_map.get(student_name)
-            
-            # Get section ID
-            section_id = self.enrollment_section_id_map.get(section_desc)
-            
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            
-            cursor.execute("INSERT INTO Enrollment (student_id, section_id, grade) VALUES (?, ?, ?)", 
-                          (student_id, section_id, grade))
-            conn.commit()
-            conn.close()
-            
-            self.load_enrollments()
-            
-            # Clear form
-            self.enrollment_student_combobox.set("")
-            self.enrollment_section_combobox.set("")
-            self.enrollment_grade_entry.delete(0, tk.END)
-            
-            messagebox.showinfo("Success", "Enrollment added successfully")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to add enrollment: {str(e)}")
-            
-    def select_enrollment(self, event):
-        """Select an enrollment from treeview to populate form"""
-        try:
-            selected_item = self.enrollment_tree.selection()[0]
-            values = self.enrollment_tree.item(selected_item, "values")
-            
-            # Populate form
-            self.enrollment_student_combobox.set(values[1])
-            self.enrollment_section_combobox.set(values[2])
-            self.enrollment_grade_entry.delete(0, tk.END)
-            self.enrollment_grade_entry.insert(0, values[3])
-        except IndexError:
-            pass  # No item selected
-            
-    def update_enrollment(self):
-        """Update selected enrollment"""
-        try:
-            selected_item = self.enrollment_tree.selection()[0]
-            enrollment_id = self.enrollment_tree.item(selected_item, "values")[0]
-            
-            student_name = self.enrollment_student_combobox.get()
-            section_desc = self.enrollment_section_combobox.get()
-            grade = self.enrollment_grade_entry.get()
-            
-            if not student_name or not section_desc:
-                messagebox.showerror("Error", "Student and Section are required")
-                return
-                
-            # Get student ID
-            student_id = self.enrollment_student_id_map.get(student_name)
-            
-            # Get section ID
-            section_id = self.enrollment_section_id_map.get(section_desc)
-                
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            
-            cursor.execute("UPDATE Enrollment SET student_id=?, section_id=?, grade=? WHERE enrollment_id=?", 
-                          (student_id, section_id, grade, enrollment_id))
-            conn.commit()
-            conn.close()
-            
-            self.load_enrollments()
-            
-            messagebox.showinfo("Success", "Enrollment updated successfully")
-        except IndexError:
-            messagebox.showerror("Error", "Please select an enrollment to update")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to update enrollment: {str(e)}")
-            
-    def delete_enrollment(self):
-        """Delete selected enrollment"""
-        try:
-            selected_item = self.enrollment_tree.selection()[0]
-            enrollment_id = self.enrollment_tree.item(selected_item, "values")[0]
-            
-            # Confirm deletion
-            result = messagebox.askyesno("Confirm", "Are you sure you want to delete this enrollment?")
-            if result:
-                conn = sqlite3.connect(DATABASE_NAME)
-                cursor = conn.cursor()
-                
-                cursor.execute("DELETE FROM Enrollment WHERE enrollment_id=?", (enrollment_id,))
-                conn.commit()
-                conn.close()
-                
-                self.load_enrollments()
-                
-                # Clear form
-                self.enrollment_student_combobox.set("")
-                self.enrollment_section_combobox.set("")
-                self.enrollment_grade_entry.delete(0, tk.END)
-                
-                messagebox.showinfo("Success", "Enrollment deleted successfully")
-        except IndexError:
-            messagebox.showerror("Error", "Please select an enrollment to delete")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to delete enrollment: {str(e)}")
-            
-    def search_enrollments(self):
-        """Search enrollments by student name or ID"""
-        search_term = self.enrollment_search_entry.get()
-        
-        # Clear existing data
-        for item in self.enrollment_tree.get_children():
-            self.enrollment_tree.delete(item)
-            
-        # Search by student name or ID
-        conn = sqlite3.connect(DATABASE_NAME)
-        cursor = conn.cursor()
-        
-        if search_term.isdigit():
-            cursor.execute("""
-                SELECT e.enrollment_id, st.name, c.course_name || ' - ' || s.room_no || ' (' || s.time_slot || ')', e.grade
-                FROM Enrollment e
-                LEFT JOIN Student st ON e.student_id = st.student_id
-                LEFT JOIN Section s ON e.section_id = s.section_id
-                LEFT JOIN Course c ON s.course_id = c.course_id
-                WHERE e.enrollment_id=? OR st.name LIKE ?
-            """, (search_term, f"%{search_term}%"))
-        else:
-            cursor.execute("""
-                SELECT e.enrollment_id, st.name, c.course_name || ' - ' || s.room_no || ' (' || s.time_slot || ')', e.grade
-                FROM Enrollment e
-                LEFT JOIN Student st ON e.student_id = st.student_id
-                LEFT JOIN Section s ON e.section_id = s.section_id
-                LEFT JOIN Course c ON s.course_id = c.course_id
-                WHERE st.name LIKE ?
-            """, (f"%{search_term}%",))
-            
-        enrollments = cursor.fetchall()
-        conn.close()
-        
-        # Insert data
-        for enrollment in enrollments:
-            self.enrollment_tree.insert("", tk.END, values=enrollment)
-            
-    def create_assign_course_tab(self):
-        """Create the assign course tab for admin"""
-        # Left frame for form
-        form_frame = create_form_frame(self.assign_course_tab, "Assign Course to Professor")
-        
-        # Form fields
-        create_label(form_frame, "Course:", 0, 0)
-        self.assign_course_combobox = create_combobox(form_frame, 27, 0, 1)
-        self.load_courses_to_assign()
-        
-        create_label(form_frame, "Professor:", 1, 0)
-        self.assign_professor_combobox = create_combobox(form_frame, 27, 1, 1, pady=5)
-        self.load_professors_to_assign()
-        
-        # Assign button
-        assign_button = ttk.Button(form_frame, text="Assign", command=self.assign_course_to_professor)
-        assign_button.grid(row=2, column=0, columnspan=2, pady=20)
-        
-        # Right frame for treeview
-        tree_frame = create_tree_frame(self.assign_course_tab, "Course Assignments")
-        
-        # Create treeview
-        columns = ("Course ID", "Course Name", "Professor ID", "Professor Name")
-        headings = ("Course ID", "Course Name", "Professor ID", "Professor Name")
-        widths = (80, 200, 80, 200)
-        self.assignments_tree = create_treeview(tree_frame, columns, headings, widths)
-        self.load_assignments()
-        
-    def load_courses_to_assign(self):
-        """Load courses to assign combobox"""
-        conn = sqlite3.connect(DATABASE_NAME)
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT course_id, course_name FROM Course")
-        courses = cursor.fetchall()
-        conn.close()
-        
-        # Create a list of course names for the combobox
-        course_names = [course[1] for course in courses]
-        self.assign_course_combobox['values'] = course_names
-        
-        # Create a mapping for course_id lookup
-        self.assign_course_id_map = {course[1]: course[0] for course in courses}
-        
-    def load_professors_to_assign(self):
-        """Load professors to assign combobox"""
-        conn = sqlite3.connect(DATABASE_NAME)
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT professor_id, name FROM Professor")
-        professors = cursor.fetchall()
-        conn.close()
-        
-        # Create a list of professor names for the combobox
-        prof_names = [prof[1] for prof in professors]
-        self.assign_professor_combobox['values'] = prof_names
-        
-        # Create a mapping for professor_id lookup
-        self.assign_prof_id_map = {prof[1]: prof[0] for prof in professors}
-        
-    def load_assignments(self):
-        """Load course assignments to treeview"""
-        # Clear existing data
-        for item in self.assignments_tree.get_children():
-            self.assignments_tree.delete(item)
-            
-        # Fetch data
-        conn = sqlite3.connect(DATABASE_NAME)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT c.course_id, c.course_name, p.professor_id, p.name
-            FROM Course c
-            JOIN Professor p ON c.professor_id = p.professor_id
-        """)
-        assignments = cursor.fetchall()
-        conn.close()
-        
-        # Insert data
-        for assignment in assignments:
-            self.assignments_tree.insert("", tk.END, values=assignment)
-            
-    def assign_course_to_professor(self):
-        """Assign a course to a professor"""
-        course_name = self.assign_course_combobox.get()
-        prof_name = self.assign_professor_combobox.get()
-        
-        if not course_name or not prof_name:
-            messagebox.showerror("Error", "Please select both course and professor")
-            return
-            
-        try:
-            # Get course ID
-            course_id = self.assign_course_id_map.get(course_name)
-            
-            # Get professor ID
-            prof_id = self.assign_prof_id_map.get(prof_name)
-            
-            # Update course with professor
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            
-            cursor.execute("UPDATE Course SET professor_id=? WHERE course_id=?", 
-                          (prof_id, course_id))
-            conn.commit()
-            conn.close()
-            
-            messagebox.showinfo("Success", "Course assigned to professor successfully")
-            self.load_assignments()  # Refresh assignments
-            self.load_courses()  # Refresh courses
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to assign course: {str(e)}")

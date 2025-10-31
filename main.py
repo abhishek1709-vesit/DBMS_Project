@@ -89,11 +89,14 @@ class UniversityManagementSystem:
             self.current_user = user
             self.current_user_role = role
             if role == "Student":
-                StudentDashboard(self.root, user)
+                dashboard = StudentDashboard(self.root, user)
+                dashboard.set_logout_callback(self.create_login_ui)
             elif role == "Professor":
-                ProfessorDashboard(self.root, user)
+                dashboard = ProfessorDashboard(self.root, user)
+                dashboard.set_logout_callback(self.create_login_ui)
             elif role == "Admin":
-                AdminDashboard(self.root, user)
+                dashboard = AdminDashboard(self.root, user)
+                dashboard.set_logout_callback(self.create_login_ui)
         else:
             messagebox.showerror("Error", "Invalid username or password")
 
